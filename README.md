@@ -27,6 +27,11 @@ sudo dd if=~/Downloads/ubuntu-22.04.5-live-server-amd64.iso of=/dev/disk2 bs=1m
 sudo diskutil eject /dev/disk2
 ```
 
+## Bmax black screen problem
+
+After changing the boot order to the bootbale usb, and selecting "Try or Install Ubuntu Server", the screen is blank, doesn't do anything, so I can't continue. Need to add `nomodeset i915.modeset=0`
+
+
 ## Step 1 Ubuntu Server Installation
 - Boot from USB (may need to enter boot menu and select the USB drive)
 - Press ENTER on "Try or Install Ubuntu Server"
@@ -67,13 +72,33 @@ Free space = Available to create new logical volumes
 
 
 - Confirm destructive action
+- Profile configuration: set user, server and password
 - Skip Ubuntu Pro offer
 - SSH configuration: **Enable "Install OpenSSH server"** and later configure ssh keys
 - Featured server snaps: snaps are containerized applications with dependencies included Auto-updating** packages from Snap Store Isolated from system packages. Install manually AFTER system is running
 - confirm destructive action again
+- Wait to finish installation
+- Reboot now
+- Shows Welcome to Ubuntu 22.05.5 LTS
+
+# Server Naming Clarification
+
+## Server Name Purpose (NOT an IP address nor localhost -reserved for the machine itself-) - this is a hostname for network identification
+
+For example, pick lab-admin for user and lab-server for server
+
+## What "lab-server" Means:
+- On your local network: `lab-server.local`
+- SSH access: `ssh lab-admin@lab-server.local`
+- Other devices can find it via: `ping lab-server.local`
+
+## IP Address Handling:
+- The server gets IP automatically via DHCP
+- You can find it later with: `ip addr show`
+- Or from Mac: `ping lab-server.local`
 
 ### Step 2: Initial Server Setup (30 mins)
-After install, connect from your Mac:
+After install, connect from to connect from other machine:
 
 ```bash
 ssh wpadmin@museum-server.local  # or use IP address
@@ -83,3 +108,59 @@ Basic server setup:
 sudo apt update && sudo apt upgrade -y
 sudo apt install htop tree ncdu -y  # monitoring tools
 ```
+
+```bash
+ssh lab-admin@lab-server.local
+```
+
+ssh lab-admin@192.168.1.139
+
+## Quick Fix for .local Resolution
+**After SSH login, install:**
+```bash
+sudo apt install avahi-daemon
+sudo systemctl enable avahi-daemon
+sudo systemctl start avahi-daemon
+```
+
+Graceful Shutdown (Recommended)
+`sudo shutdown -h now`
+
+
+### Fix wifi network configuration (change wifi once installed)
+
+```bash
+# Remove ALL netplan files
+`sudo rm /etc/netplan/*.yaml`
+
+# Remove cloud-init network interference
+`echo "network: {config: disabled}" | sudo tee /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg`
+
+3. Create ONE simple netplan file:
+
+```bash
+# Find your Wi-Fi interface name
+WIFI_INTERFACE=$(ip link show | grep wl | awk -F: '{print $2}' | xargs)
+echo "Your Wi-Fi interface is: $WIFI_INTERFACE"
+
+# Create the config file
+sudo tee /etc/netplan/01-wifi.yaml << EOF
+network:
+  version: 2
+  wifis:
+    $WIFI_INTERFACE:
+      dhcp4: yes
+      access-points:
+        "YOUR_SSID":
+          password: "YOUR_PASSWORD"
+EOF
+```
+4. Apply it:
+bash
+sudo netplan apply
+5. Test it works:
+bash
+ping -c 4 google.com
+6. Make it survive reboot:
+bash
+sudo reboot
