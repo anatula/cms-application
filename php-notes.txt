@@ -1,0 +1,108 @@
+PHP open source scripting language for web development (server side) and can be embedded into HTML.
+
+Wordpress CMS based on PHP
+
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Example</title>
+    </head>
+    <body>
+
+        <?php
+            echo "Hi, I'm a PHP script!";
+        ?>
+
+    </body>
+</html>
+
+Is this a PHP page or HTML page?
+Is it a valid HTML?
+What the php tag is ignored in my browser? so what does the browser do with it?
+Where would be "Hi, I'm a PHP script!" be shown?
+
+PHP pages contain HTML with embedded code that does something (in this case, output Hi, I'm a PHP script!). The PHP code is enclosed in <?php ?> allows jumping in and out of “PHP mode.”
+
+Different than client-side JavaScript because the code is executed on the server, generating HTML which is then sent to the client. The client receive the results of running that script, but would not know what the underlying code was. A web server can even be configured to process all HTML files with PHP, and then there's no way that users can tell that PHP is being used.
+
+Focused on server-side scripting, it can do anything any other CGI program can do, such as collect form data, generate dynamic page content, or send and receive cookies. Two main areas where PHP scripts are used:
+* Server-side scripting: need the PHP parser (CGI or server module), a web server, and a web browser.
+* Command line scripting: a PHP script can be run without any server or browser, only the PHP parser is needed. This type of usage is ideal for scripts regularly executed using cron. Can also be used for simple text processing tasks.
+
+PHP can be used on all major operating systems and  has support for most of the web servers today. This includes Apache, IIS, and many others. And this includes any web server that can utilize the FastCGI PHP binary, like lighttpd and nginx. PHP works as either a module, or as a CGI processor.
+
+PHP supports a wide range of databases. Writing a database-enabled web page is incredibly simple using one of the database specific extensions (e.g., for mysql), or using an abstraction layer like PDO, or connect to any database supporting the Open Database Connection standard via the ODBC extension. Other databases may utilize cURL or sockets, like CouchDB.
+
+PHP also has support for talking to other services using protocols such as LDAP, IMAP, SNMP, NNTP, POP3, HTTP, COM (on Windows) and countless others. It can also open raw network sockets and interact using any other protocol. PHP has support for the WDDX complex data exchange between virtually all Web programming languages. Talking about interconnection, PHP has support for instantiation of Java objects and using them transparently as PHP objects.
+
+Versions
+
+- 3.0 1998
+- 4.0 2000
+- 5.0 2024
+- 7.0 2020
+- 8.0 PPHP (P pandemic)
+
+PHP 8.5 released Nov 20, 2025 is a major update of the PHP language, with new features including the URI extension, Pipe operator, and support for modifying properties while cloning.
+
+No formal language process spec like ECMA script or JAVA. The community discuss it and then release a version.
+
+From version 8 removed a lot of “crappy/historical” syntax, get in track to be a better language.
+
+
+There are several “engines” since it’s open source, anyone can create their own PHP interpreter. Zend company manages the standard engine. There is now the PHP foundation.
+
+Interpreter/scripting language, we deploy directly the source code. Publish code directly to the server. Does not mean that we don’t have compilation, PHP 8 has JIT, we devs don’t compile, the interpreter (typically in the server) it will compile it on the fly before executing to be more performant. It has a cache, if didn’t  change the source code, it will cache the compiled version, so it won’t compiling on every user accessing your website. Watching the filesystem .php file has changed, then it will deleted the cached version and delete again.
+
+Like Javascript, on every browser javascript is being compiled, but we devs don’t see it.
+
+
+PHP itself, PHP parser, PHP interpreter
+
+In case of setting up the server and PHP on your own, you have two choices for the method of connecting PHP to the server. For many servers PHP has a direct module interface (also called SAPI). These servers include Apache, Microsoft Internet Information Server, Netscape and iPlanet servers. If PHP has no module support for your web server, you can always use it as a CGI or FastCGI processor. This means you set up your server to use the CGI executable of PHP to process all PHP file requests on the server.
+
+Key features of PHP
+- Very flexible language
+- Cross-platform, interpreter is available for Unix, Windows, Mac, Android
+- Wide Database support
+- Open source
+- Multi Paradigm  OOP
+- Rich Library for the amount of functions
+    - Session Management Built-in: when you visit a website you can store variables in the session (server side), then if the user continues navigating your website you can get those values/variables on additional or future requests. Internally, it’s creating cookies in session id and saving those variables (all built-in). Fill your name in the form, you save that name in the session and you know the name of the user, no need of db or anything. The protocol HTTP is stateless, each request is new, from a server POV we don’t know the user.
+
+Why PHP
+- Create an MVP really fast
+- If you use Wordpress you will need PHP to extend the basic behaviour
+
+
+LAMP a common stack:
+- Linux
+- Apache
+- MySQL/Maria DB
+- PHP
+
+On Express.js when you start a project you see the code that is creating the server, opening the TCP port and listening for requests. PHP will not open any port, is a scripting language, you execute it, it returns something, an output, like stream or binary data and that’s all. So, you need a “frontend” for the server, you need someone that will receive the request from the browser and will somehow connect that request to your PHP script. 
+
+Big shift, where you are responsable for opening the server and managing routes: you receive the request and lets see the url /help that match a file. It may happen in a framework
+
+So we need a server, Apache, NGINX
+
+Start
+Need php -v using brew or docker
+Install plugin in VSCode, PHP debug to run your .php script
+
+HTML was created to help HTML, a .php file will treat every string as an output. Most of the time is HTML. PHP code will be in PHP tag 
+
+One static output and a dynamic:
+
+test.php
+Hello
+<? php
+echo(“Hello”);
+> 
+
+Run it with: php test.php
+Echo with or without ()
+$name is a variable can do echo $name
+The goal of a PHP script is to flush output data, most of the time you are flushing text, a stream, sometimes binary output data. On Node.js we use the output only for debugging, send something to the browser use a response object, have a special way or channel, the browser, use the console. console.log in JS for debugging. Echo is our actual output we are going to send to a browser. 
+
