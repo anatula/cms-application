@@ -106,3 +106,43 @@ Echo with or without ()
 $name is a variable can do echo $name
 The goal of a PHP script is to flush output data, most of the time you are flushing text, a stream, sometimes binary output data. On Node.js we use the output only for debugging, send something to the browser use a response object, have a special way or channel, the browser, use the console. console.log in JS for debugging. Echo is our actual output we are going to send to a browser. 
 
+- Variables $var, not let nor var key declaration, the variable name is case sensitive
+- $isDone= true $isDone= truE $isDone= True (boolean value and null is case insensitive )
+
+- Always need semi-colons  (except last line)
+
+<? php
+$name = "Ana”;
+echo $name;
+$year = 2026;
+$name = 4;
+echo $name;
+
+Just global code, no class nor function or main function. Execute PHP code line by line form top to bottom.
+
+Has goto command, a way to break the normal flow of the execution (bad practice)
+
+Goal of PHP script is to set output, right now, no server so it’s the console. Where is the server?  Not yet, just a script.
+
+In PHP nothing it’s an object, not OOP, unless it’s an object. Not . syntax
+We work with functions, global functions 
+
+PHP contains a server for development purposes only:
+
+php  -S localhost:4000
+
+Inside a folder it expects index.html or index.php, that means PHP by default is sending HTML. If I use .php and inside do an echo in PHP tag, will with the client and show in the browser. This is sender side generated code, client gets the final generated code, not PHP tags.
+
+PHP works per request, each file responds to each URL, routing is NOT php responsability, it’s the server.  Sometimes you can mix a server with a framework like Laravel Coding Nighter. They do things on top of HTML.
+
+To remove the .php from the URL is a server problem, you need to setup your server. 
+
+PHP outputs text in a buffer,  the buffer is the HTTP response to the browser.
+
+Super global variables $_GET $_POST $_REQUEST $_COOKIE $_SESSION
+
+ phpinfo(); function to see if config is working, plugins, folder being executed
+
+var_dump($_SERVER) giving an snapshot of the content of any variable
+
+
