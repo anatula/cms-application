@@ -54,6 +54,22 @@ server {
 }
 ```
 
+Essentially, this block is a translator. Nginx cannot read PHP code on its own; it only knows how to serve static files like images or HTML. This configuration tells Nginx: "If you see a file ending in .php, don't try to open it yourself—send it to the PHP engine instead." 
+
+Here is the breakdown of what each line is doing:
+
+location ~ \.php$: This identifies the request. The ~ tells Nginx to use a "regular expression" to look for any web address ending specifically in .php.
+
+`root html;`: Tells Nginx where your website files are stored on the hard drive (e.g., in a folder named html).
+
+`fastcgi_pass unix:/run/php/php8.5-fpm.sock;`: This is the "hand-off." It tells Nginx to send the request to the PHP-FPM service using a Unix Socket. Sockets are faster than network ports because they communicate directly through the local file system without network overhead.
+
+`fastcgi_index index.php;`: If a user visits a folder (like example.com/blog/) instead of a specific file, Nginx will look for index.php inside that folder to serve as the default.
+
+`fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;`: This tells the PHP engine exactly which file to run. It combines your website's folder path ($document_root) with the specific file requested ($fastcgi_script_name) so PHP can find it on the disk.
+
+include fastcgi_params;: This imports a standard list of "helper" settings (like the user’s IP address and browser type) so that your PHP scripts can access that information using $_SERVER variables. 
+
 # Test configuration syntax
 sudo nginx -t
 # Should show: syntax is ok... test is successful
