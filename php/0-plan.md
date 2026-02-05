@@ -4,7 +4,7 @@
 4. PHP-FPM and Nginx Configuration
 5. Install Database (MySQL/MariaDB)
 6. Install WordPress
-7. Install WordPress Plugins/Themes
+7. Configure WordPress and Plugins/Themes
 
 Extra:
 1. Composer
