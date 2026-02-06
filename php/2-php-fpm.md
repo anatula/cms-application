@@ -1,66 +1,86 @@
-SAPI = Server API
-It's a C interface in PHP's source code that defines how PHP receives input and sends output.
+# 2) PHP-FPM Installation
 
-PHP Source Code Structure:
-In the PHP source code (written in C), there are different main() functions:
+## FastCGI: The Protocol That Made PHP Scalable
 
-1. CLI SAPI (sapi/cli/php_cli.c):
-```c
-// Simplified actual C code from PHP source
-int main(int argc, char *argv[]) {
-    // Reads: command line arguments (argc, argv)
-    // Processes: One PHP file
-    // Outputs: To stdout (terminal)
-    // Then: Exits
-}
-```
-Compiled to: /usr/bin/php8.5
+## Historical Context & The Problem
 
-2. FPM SAPI (sapi/fpm/fpm/fpm_main.c):
-```c
-// Simplified actual C code from PHP source  
-int main(int argc, char *argv[]) {
-    // Reads: FastCGI protocol from socket
-    // Processes: Multiple PHP requests over time
-    // Outputs: Back through FastCGI to web server
-    // Runs: Forever as a daemon
-}
-```
-Compiled to: /usr/sbin/php-fpm8.5
+In the early web (circa 1993), dynamic content was served via **CGI (Common Gateway Interface)**, designed by the NCSA team. CGI worked by having the web server (like Apache) `fork()` a new OS process for every single request. This child process would `setenv()` with request data (URL, headers, etc.) and then `execve()` to replace itself with a runtime like the PHP interpreter. After generating a response, the process died. This "fork-and-exec-per-request" model incurred massive OS overhead, making it slow and unable to handle concurrent traffic.
 
-When PHP is compiled, it builds different executables:
+## FastCGI: The 1996 Specification
 
-```text
-php-8.5.0-source/
-├── sapi/
-│   ├── cli/           → Compiles to: php8.5 (CLI binary)
-│   ├── fpm/           → Compiles to: php-fpm8.5 (FPM binary)
-└── Zend/              (PHP engine core - used by ALL SAPIs)
-```
+**FastCGI**, created by Open Market, solved this by defining a **binary protocol** for efficient, persistent communication between a web server and an application process. It replaced CGI's process creation with **socket communication** (over TCP or Unix sockets) and process pools.
 
-Input/Output Methods:
-CLI SAPI:
+## Core Technical Mechanism
 
-- Input: Command line arguments, STDIN
-- Output: STDOUT, STDERR
-- Environment: Terminal, pipes
+FastCGI is a **binary RPC protocol**. The web server (client) and application (server) exchange structured records over a persistent connection.
 
-FPM SAPI:
+*   **Binary Protocol**: Unlike text-based HTTP, FastCGI uses tightly packed binary records for speed. A record header defines type, request ID, and content length, allowing for direct memory mapping without text parsing.
+*   **Request Multiplexing**: A single connection can carry multiple simultaneous requests, identified by a unique request ID in each record.
+*   **Environment Passing**: To maintain backward compatibility with CGI's environment variable model, request metadata is transmitted as a series of key-value pairs in `FCGI_PARAMS` records. The application process parses these and uses `setenv()` to create the environment expected by the scripting runtime (e.g., PHP).
+*   **Process Persistence**: The application process (e.g., PHP-FPM) starts once and remains alive in a pool. It waits for connections, parses incoming FastCGI records, executes the requested script, and sends back the response in `FCGI_STDOUT` records—all within the same process, eliminating fork/exec overhead.
 
-- Input: FastCGI protocol over socket
-- Output: FastCGI response over same socket
-- Environment: Web server requests
+## PHP-FPM: The PHP FastCGI Implementation
 
-When Ondřej builds the packages:
+PHP-FPM (FastCGI Process Manager) is PHP's implementation of the FastCGI spec. It runs as a master daemon that manages pools of persistent **worker processes**.
 
-text
-For CLI SAPI package (php8.5):
-`gcc -o php8.5 sapi/cli/*.c Zend/*.c main/*.c ext/*/*.c -l options`
+1.  **Master Process**: Binds to a socket (`/run/php/php8.5-fpm.sock`), manages worker lifecycles, and reads configuration.
+2.  **Worker Processes**: Long-lived PHP processes that wait on the socket. When a request arrives:
+    *   They parse the FastCGI `FCGI_PARAMS` records to extract environment variables.
+    *   They call `clearenv()` and `setenv()` to simulate a fresh CGI environment for the request.
+    *   They execute the PHP script via an internal function call (`php_execute_script()`), **not** `execve()`. This keeps the worker alive.
+    *   They capture the output, package it into `FCGI_STDOUT` records, and send it back to the web server.
+    *   They reset and wait for the next request, reusing their compiled bytecode cache (OPcache) and database connections.
 
-For FPM SAPI package (php8.5-fpm):
-`gcc -o php-fpm8.5 sapi/fpm/*.c Zend/*.c main/*.c ext/*/*.c -l options`
-Result: Two different binaries using the same PHP core.
+## Other modern alternatives
+- WSGI/ASGI (Python, e.g., with Gunicorn/Uvicorn)
+- Servlets (Java)
+- Running the application as its own HTTP server and using Nginx as a reverse proxy (common with Node.js, modern Python/Go apps).
 
+## SAPI (Server API)
+
+SAPI is a C-level interface (C struct with function pointers) in PHP's source code that defines a contract for how PHP communicates with its environment. Each SAPI implementation (CLI, FPM, CGI, etc.) provides concrete implementations of these functions, enabling the same PHP engine to work in different contexts by connecting to:
+- Terminals (via stdin/stdout - CLI)
+- Web servers (via sockets - FPM/FastCGI)
+
+**SAPI (Server API)** is PHP's C-level interface layer that enables a single PHP engine to operate in multiple execution environments through specialized binaries.
+
+### Source Structure
+Located at: [github.com/php/php-src/tree/master/sapi](https://github.com/php/php-src/tree/master/sapi)
+
+Within the php-src repository:
+- `sapi/` - SAPI implementations (different binaries)
+  - `cli/` → `php` binary (CLI)
+  - `fpm/` → `php-fpm` binary (FastCGI Process Manager)
+  - `cgi/` → `php-cgi` binary (CGI)
+  - `embed/` → Embedded PHP
+- `Zend/` - Shared PHP execution engine
+- `main/` - Shared PHP runtime
+
+## Core Mechanism
+Each SAPI implements a C `struct _sapi_module_struct` containing function pointers for:
+- `ub_write()` - Environment-specific output (stdout/socket)
+- `read_post()` - Environment-specific input (stdin/socket)
+- `flush()`, `send_header()`, etc. - 20+ communication methods
+
+The **same Zend engine** calls these function pointers, while each SAPI provides concrete implementations for its environment.
+
+## Binary Compilation
+CLI binary: links cli/*.c with shared core
+`gcc -o php sapi/cli/.c Zend/.c main/*.c`
+
+FPM binary: links fpm/*.c with same shared core
+`gcc -o php-fpm sapi/fpm/.c Zend/.c main/*.c`
+
+Result: Separate executables (`/usr/bin/php`, `/usr/sbin/php-fpm`) sharing identical PHP semantics but different communication channels.
+
+## Environment Mapping
+| SAPI | Binary | Input | Output | Execution Model |
+|------|--------|-------|--------|-----------------|
+| CLI | `php` | stdin/args | stdout/stderr | Single script, exit |
+| FPM | `php-fpm` | FastCGI socket | FastCGI socket | Persistent daemon |
+
+
+PHP maintains **one codebase** with **multiple interface implementations**. The SAPI layer abstracts environment communication, allowing identical PHP code to execute across terminal, web server, and embedded contexts via different compiled binaries.
 Check the Actual Binaries:
 ```bash
 # After installing php8.5-fpm:
@@ -73,7 +93,6 @@ ls -l /usr/bin/php8.5 /usr/sbin/php-fpm8.5
 # Check with file command:
 file /usr/bin/php8.5
 # ELF 64-bit LSB executable, x86-64, version 1 (SYSV), dynamically linked...
-
 file /usr/sbin/php-fpm8.5
 ```
 
@@ -83,12 +102,29 @@ SAPI = Different main() functions in C code that compile to different binaries.
 
 They're independent binaries that can be installed separately. We happened to install CLI first (via the php8.5 meta-package), but we could have installed only FPM for a web server.
 
-https://php.watch/articles/php-8-5-installation-upgrade-guide-debian-ubuntu#fpm
 
-Install PHP-FP = PHP FastCGI Process Manager
+## Install PHP-FP = PHP FastCGI Process Manager
+
+```
+┌─────────────┐     FastCGI     ┌─────────────┐
+│   Nginx     │◄──over socket──►│   php-fpm   │
+│  (web       │                 │   (PHP      │
+│   server)   │                 │    server)  │
+└─────────────┘                 └─────────────┘
+       │                              │
+       ▼                              ▼
+  Serves static                 Executes PHP
+  files, proxies                scripts, returns
+  PHP requests                  HTML/JSON
+```
+
+Follow guide https://php.watch/articles/php-8-5-installation-upgrade-guide-debian-ubuntu#fpm
+
+**PHP-FPM (FastCGI Process Manager)** is a production-grade PHP server daemon that runs as a standalone process, listening for PHP execution requests from web servers (Nginx/Apache) via FastCGI protocol.
+
 PHP-FPM is the recommended way to integrate PHP with web servers such as Apache (with mpm_event), Nginx, Caddy.
 
-The php8.5-fpm package (same ondrej PPA) installs PHP FPM server along with systemd units to automatically start the FPM server when the server starts.
+The php8.5-fpm package (found in the previous ondrej PPA) installs PHP FPM server along with systemd units to automatically start the FPM server when the server starts.
 
 `sudo apt install php8.5-fpm`
 
@@ -209,14 +245,19 @@ Socket Analysis:
 u_str LISTEN 0      4096                     /run/php/php8.5-fpm.sock 76636            * 0    users:(("php-fpm8.5",pid=13755,fd=10),("php-fpm8.5",pid=13754,fd=10),("php-fpm8.5",pid=13752,fd=8))
 ```
 Breaking it down:
+
 u_str = Unix stream socket (not TCP/IP)
+
 LISTEN = Socket is listening for connections
+
 /run/php/php8.5-fpm.sock = Path to the Unix socket
+
 76636 = Inode number of the socket
+
 users:(("php-fpm8.5",pid=13755,fd=10) = Processes using this socket:
 pid=13755 = Worker process 1 (file descriptor 10)
 pid=13754 = Worker process 2 (file descriptor 10)
-pid=13752 = Master process (file descriptor 8) ← This is key!
+pid=13752 = Master process (file descriptor 8)
 
 1. Master Process Listens (pid=13752, fd=8):
 - Master process (PID 13752) has the socket open on file descriptor 8
@@ -234,47 +275,64 @@ Nginx → Connects to socket → Master (fd=8) accepts → Master assigns to Wor
 ```
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                 PHP-FPM Socket Architecture             │
-├─────────────────────────────────────────────────────────┤
-│                                                         │
-│  MASTER PROCESS (pid=13752)                             │
-│  File Descriptor 8 ──┐                                  │
-│                      │ Listens for NEW connections      │
-│  WORKER 1 (pid=13754)│                                  │
-│  File Descriptor 10 ─┼─┐                                │
-│                      │ │ Can PROCESS requests           │
-│  WORKER 2 (pid=13755)│ │                                │
-│  File Descriptor 10 ─┘ │                                │
-│                        │                                │
-│  ┌─────────────────────┘                                │
-│  │                                                      │
-│  ▼                                                      │
-│  ┌─────────────────────────────────────────────────┐    │
-│  │  UNIX SOCKET: /run/php/php8.5-fpm.sock (inode 76636) │
-│  └─────────────────────────────────────────────────┘    │
-│          ↑                                              │
-│          │                                              │
-│  ┌───────┴───────┐                                      │
-│  │    Nginx      │  (When installed)                    │
-│  │  fastcgi_pass │                                      │ 
-│  └───────────────┘                                      │
-│                                                         │
-└─────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────┐
+│        PHP-FPM MASTER PROCESS           │
+│        PID: 13752 (runs as root)        │
+├─────────────────────────────────────────┤
+│ • Creates socket                        │
+│ • Manages workers                       │
+│ • Monitors health                       │
+│ • Handles reloads                       │
+│ • Does NOT run PHP code                 │
+│                                         │
+│ Socket: /run/php/php8.5-fpm.sock (fd:8) │
+└───────────────────┬─────────────────────┘
+                    │
+              Forks workers
+                    │
+     ┌──────────────┼──────────────┐
+     │              │              │
+     ▼              ▼              ▼
+┌─────────┐  ┌─────────┐  ┌─────────┐
+│ WORKER1 │  │ WORKER2 │  │ WORKERN │
+│ PID:    │  │ PID:    │  │ ...     │
+│ 13754   │  │ 13755   │  │         │
+│ www-data│  │ www-data│  │ www-data│
+├─────────┤  ├─────────┤  ├─────────┤
+│ • Runs  │  │ • Runs  │  │ • Runs  │
+│   PHP   │  │   PHP   │  │   PHP   │
+│   code  │  │   code  │  │   code  │
+│ • fd:10 │  │ • fd:10 │  │ • fd:10 │
+└─────────┘  └─────────┘  └─────────┘
+     │              │              │
+     └──────────────┼──────────────┘
+                    │
+          All connect to same socket
+                    │
+                    ▼
+        ┌────────────────────────────┐
+        │  UNIX SOCKET               │
+        │  /run/php/php8.5-fpm.sock  │
+        └────────────────────────────┘
+                    ▲
+                    │
+        ┌───────────┴───────────┐
+        │      NGINX            │
+        │  fastcgi_pass unix:...│
+        └───────────────────────┘
+
+FLOW: Nginx → Socket → Any available Worker → PHP execution → Response
 ```
 
 What This Means for Nginx:
 When you configure Nginx, this line will work:
 
-nginx
-fastcgi_pass unix:/run/php/php8.5-fpm.sock;
+`fastcgi_pass unix:/run/php/php8.5-fpm.sock;`
+
 Because:
-
-Socket exists at that path
-
-PHP-FPM master is listening on it (fd=8)
-
-Workers are ready to process requests (fd=10)
+- Socket exists at that path
+- PHP-FPM master is listening on it (fd=8)
+- Workers are ready to process requests (fd=10)
 
 Bottom Line:
 PHP-FPM socket is perfectly configured and ready! The ss output shows:
@@ -284,15 +342,9 @@ PHP-FPM socket is perfectly configured and ready! The ss output shows:
 - Two worker processes (fd=10) ready to execute PHP
 - All processes sharing the same socket inode (76636)
 
-```bash
-php-fpm8.5 -i | grep "Server API"
-Server API => FPM/FastCGI
-Server API (SAPI) Abstraction Layer => Andi Gutmans, Shane Caraveo, Zeev Suraski
-```
-
 
 PHP-FPM (What you'll install):
-bash
+```bash
 sudo systemctl start php8.5-fpm
  1. Master process starts
  2. Creates worker pool (e.g., 10 workers)
@@ -301,20 +353,4 @@ sudo systemctl start php8.5-fpm
  5. Worker processes request, returns response
  6. Worker waits for next request
  7. Process stays alive (persistent)
-FastCGI Protocol Explained:
-Nginx to PHP-FPM communication:
-
-nginx
-``` Nginx config line:
-fastcgi_pass unix:/run/php/php8.5-fpm.sock;
 ```
-What happens:
- 1. Nginx receives: GET /index.php
- 2. Nginx sends via FastCGI to socket:
-    - Script filename: /var/www/html/index.php
-    - Query string: (empty)
-    - Request method: GET
-    - Headers, cookies, etc.
- 3. PHP-FPM receives, executes PHP
- 4. Returns HTML via FastCGI
- 5. Nginx sends HTML to browser

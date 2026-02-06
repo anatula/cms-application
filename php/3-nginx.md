@@ -1,35 +1,8 @@
-After installing PHP 8.5 via PPA, we have the CLI SAPI (/usr/bin/php8.5) for terminal scripts. Installing php8.5-fpm added the FPM SAPI as a persistent service with 3 processes (master + 2 workers) consuming ~8MB RAM, created a Unix socket at /run/php/php8.5-fpm.sock listening for FastCGI connections, and established separate web configuration at /etc/php/8.5/fpm/. CLI runs ephemerally as our user, while FPM runs continuously with workers as www-data. 
+# 3) Install Nginx
 
-# FastCGI: The Protocol That Made PHP Scalable
+## Previous steps
 
-## Historical Context & The Problem
-
-In the early web (circa 1993), dynamic content was served via **CGI (Common Gateway Interface)**, designed by the NCSA team. CGI worked by having the web server (like Apache) `fork()` a new OS process for every single request. This child process would `setenv()` with request data (URL, headers, etc.) and then `execve()` to replace itself with a runtime like the PHP interpreter. After generating a response, the process died. This "fork-and-exec-per-request" model incurred massive OS overhead, making it slow and unable to handle concurrent traffic.
-
-## FastCGI: The 1996 Specification
-
-**FastCGI**, created by Open Market, solved this by defining a **binary protocol** for efficient, persistent communication between a web server and an application process. It replaced CGI's process creation with **socket communication** (over TCP or Unix sockets) and process pools.
-
-## Core Technical Mechanism
-
-FastCGI is a **binary RPC protocol**. The web server (client) and application (server) exchange structured records over a persistent connection.
-
-*   **Binary Protocol**: Unlike text-based HTTP, FastCGI uses tightly packed binary records for speed. A record header defines type, request ID, and content length, allowing for direct memory mapping without text parsing.
-*   **Request Multiplexing**: A single connection can carry multiple simultaneous requests, identified by a unique request ID in each record.
-*   **Environment Passing**: To maintain backward compatibility with CGI's environment variable model, request metadata is transmitted as a series of key-value pairs in `FCGI_PARAMS` records. The application process parses these and uses `setenv()` to create the environment expected by the scripting runtime (e.g., PHP).
-*   **Process Persistence**: The application process (e.g., PHP-FPM) starts once and remains alive in a pool. It waits for connections, parses incoming FastCGI records, executes the requested script, and sends back the response in `FCGI_STDOUT` records—all within the same process, eliminating fork/exec overhead.
-
-## PHP-FPM: The PHP FastCGI Implementation
-
-PHP-FPM (FastCGI Process Manager) is PHP's implementation of the FastCGI spec. It runs as a master daemon that manages pools of persistent **worker processes**.
-
-1.  **Master Process**: Binds to a socket (`/run/php/php8.5-fpm.sock`), manages worker lifecycles, and reads configuration.
-2.  **Worker Processes**: Long-lived PHP processes that wait on the socket. When a request arrives:
-    *   They parse the FastCGI `FCGI_PARAMS` records to extract environment variables.
-    *   They call `clearenv()` and `setenv()` to simulate a fresh CGI environment for the request.
-    *   They execute the PHP script via an internal function call (`php_execute_script()`), **not** `execve()`. This keeps the worker alive.
-    *   They capture the output, package it into `FCGI_STDOUT` records, and send it back to the web server.
-    *   They reset and wait for the next request, reusing their compiled bytecode cache (OPcache) and database connections.
+After installing PHP 8.5 via PPA, we have the CLI SAPI (/usr/bin/php8.5) for terminal scripts. Installing php8.5-fpm added the FPM SAPI as a persistent service with 3 processes (master + 2 workers), created a Unix socket at `/run/php/php8.5-fpm.sock` listening for FastCGI connections, and established separate web configuration at /etc/php/8.5/fpm/. CLI runs ephemerally as our user, while FPM runs continuously with workers as www-data. 
 
 ## Nginx's Role
 
@@ -40,39 +13,12 @@ Nginx acts as the web server and FastCGI client. For PHP requests, it:
 4.  Transmits the request using the FastCGI binary protocol.
 5.  Receives the response and delivers it to the client.
 
-The configuration directive `fastcgi_pass unix:/run/php/php8.5-fpm.sock;` establishes this bridge.
-
-## Other modern alternatives
-
-The modern alternative is FastCGI (which you are using). It keeps a pool of application processes (like PHP-FPM) running persistently, reusing them for multiple requests. Other common alternatives include:
-
-WSGI/ASGI (Python, e.g., with Gunicorn/Uvicorn)
-
-Servlets (Java)
-
-Running the application as its own HTTP server and using Nginx as a reverse proxy (common with Node.js, modern Python/Go apps).
-
-## Summary: The Modern Data Path
 HTTP Client -> Nginx (HTTP Parsing) -> FastCGI Protocol (Binary Socket) -> PHP-FPM Worker (Persistent Process) -> PHP Execution -> FastCGI Response -> Nginx -> HTTP Client
 
-What's next: Install and configure Nginx to connect to the PHP-FPM socket via fastcgi_pass unix:/run/php/php8.5-fpm.sock;.
+Install and configure Nginx to connect to the PHP-FPM socket via `fastcgi_pass unix:/run/php/php8.5-fpm.sock;`.
 
-FastCGI (Fast CGI)
-
-```
-Browser → Web Server → Already running PHP processes (pool)
-                     ↑      ↓
-                     └── Reuses processes ──┘
-```
-- Pool of persistent PHP processes
-- Reuses processes for multiple requests
-- Fast and efficient
-
-NGINX official Installation Guide
+## NGINX official Installation Guide
 https://nginx.org/en/linux_packages.html#Ubuntu
-
-
-# Nginx Installation Report & Configuration Guide
 
 ## System Changes After Installing Nginx & Verification Commands
 

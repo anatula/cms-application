@@ -1,4 +1,5 @@
-with the help of this https://www.php.net/manual/en/install.unix.nginx.php
+# 4) PHP-FPM and Nginx Configuration
+With the help of this https://www.php.net/manual/en/install.unix.nginx.php
 old guide (published in 2016) intended for people who compiled Nginx and PHP from source
 
 1. Check a Critical PHP Setting (Security)
@@ -58,17 +59,17 @@ Essentially, this block is a translator. Nginx cannot read PHP code on its own; 
 
 Here is the breakdown of what each line is doing:
 
-location ~ \.php$: This identifies the request. The ~ tells Nginx to use a "regular expression" to look for any web address ending specifically in .php.
+- `location ~ \.php$`: This identifies the request. The ~ tells Nginx to use a "regular expression" to look for any web address ending specifically in .php.
 
-`root html;`: Tells Nginx where your website files are stored on the hard drive (e.g., in a folder named html).
+- `root html;`: Tells Nginx where your website files are stored on the hard drive (e.g., in a folder named html).
 
-`fastcgi_pass unix:/run/php/php8.5-fpm.sock;`: This is the "hand-off." It tells Nginx to send the request to the PHP-FPM service using a Unix Socket. Sockets are faster than network ports because they communicate directly through the local file system without network overhead.
+- `fastcgi_pass unix:/run/php/php8.5-fpm.sock;`: This is the "hand-off." It tells Nginx to send the request to the PHP-FPM service using a Unix Socket. Sockets are faster than network ports because they communicate directly through the local file system without network overhead.
 
-`fastcgi_index index.php;`: If a user visits a folder (like example.com/blog/) instead of a specific file, Nginx will look for index.php inside that folder to serve as the default.
+- `fastcgi_index index.php;`: If a user visits a folder (like example.com/blog/) instead of a specific file, Nginx will look for index.php inside that folder to serve as the default.
 
-`fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;`: This tells the PHP engine exactly which file to run. It combines your website's folder path ($document_root) with the specific file requested ($fastcgi_script_name) so PHP can find it on the disk.
+- `fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;`: This tells the PHP engine exactly which file to run. It combines your website's folder path ($document_root) with the specific file requested ($fastcgi_script_name) so PHP can find it on the disk.
 
-include fastcgi_params;: This imports a standard list of "helper" settings (like the user’s IP address and browser type) so that your PHP scripts can access that information using $_SERVER variables. 
+- `include fastcgi_params;`: This imports a standard list of "helper" settings (like the user’s IP address and browser type) so that your PHP scripts can access that information using $_SERVER variables. 
 
 # Test configuration syntax
 sudo nginx -t
@@ -84,13 +85,15 @@ echo '<?php echo "PHP is working via Nginx!"; ?>' | sudo tee /usr/share/nginx/ht
 curl http://localhost/test.php
 # Should show: PHP is working via Nginx!
 
-error:
+Error:
 
-text
+```text
 connect() to unix:/run/php/php8.5-fpm.sock failed (13: Permission denied)
 The nginx worker process (running as user nginx) doesn't have permission to connect to the PHP-FPM socket (owned by www-data).
+```
 
 The Problem: Socket Permission Mismatch
+
 Check current socket permissions:
 
 bash
@@ -98,14 +101,17 @@ ls -la /run/php/php8.5-fpm.sock
 # Probably shows: srw-rw---- 1 www-data www-data
 The socket is owned by www-data:www-data, but nginx runs as nginx:nginx.
 
-Solution: Fix Socket Permissions
-Option 1: Make PHP-FPM Socket Accessible to Nginx (Recommended)
+## Solution: Fix Socket Permissions
+
+### Option 1: Make PHP-FPM Socket Accessible to Nginx (Recommended)
 Edit PHP-FPM pool config to allow nginx group access:
 
-bash
+```bash
 sudo nano /etc/php/8.5/fpm/pool.d/www.conf
+```
 Find these lines and change them:
 
+```
 ini
 ; Unix user/group of processes
 user = www-data
@@ -115,8 +121,10 @@ group = www-data
 listen.owner = www-data
 listen.group = www-data
 listen.mode = 0660
+```
 Change to:
 
+```
 ini
 ; Unix user/group of processes
 user = www-data
@@ -126,14 +134,19 @@ group = www-data
 listen.owner = www-data
 listen.group = nginx    # ← CHANGE THIS
 listen.mode = 0660      # rw-rw---- (www-data & nginx can read/write)
+```
+
 Or even simpler (allow everyone on system to connect):
 
+```
 ini
 listen.mode = 0666      # rw-rw-rw- (everyone can read/write)
-Option 2: Change Nginx to Run as www-data
+```
+
+### Option 2: Change Nginx to Run as www-data
 Edit nginx config to match PHP-FPM:
 
-bash
+```bash
 sudo nano /etc/nginx/nginx.conf
 Find the user directive (usually at the top):
 
@@ -143,19 +156,24 @@ Change to:
 
 nginx
 user www-data;
-Option 3: Quick Fix (Temporary Test)
-bash
+```
+
+### Option 3: Quick Fix (Temporary Test)
+```bash
 # Temporarily change socket permissions
 sudo chmod 0666 /run/php/php8.5-fpm.sock
-
+```
 # Test if it works
-curl http://localhost/test.php
+`curl http://localhost/test.php`
+
 Step-by-Step Fix (Recommend Option 1):
 Edit PHP-FPM config:
 
-bash
+```bash
 sudo nano /etc/php/8.5/fpm/pool.d/www.conf
-Change: listen.group = www-data → listen.group = nginx
+```
+
+Change: `listen.group = www-data → listen.group = nginx`
 
 Restart PHP-FPM:
 
