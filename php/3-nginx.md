@@ -173,7 +173,7 @@ systemd (PID 1) → nginx.service → nginx master (root) → nginx worker (ngin
 
 ✅ `/etc/nginx/` - Configuration directory with `nginx.conf`, `sites-available/`, `sites-enabled/`, and `modules-available/`
 
-✅ `/var/www/html/` - Default web root with sample index.nginx-debian.html
+✅ `/usr/share/nginx/html/` - Default web root, confirmed when `curl http://localhost/test.html` served the file from `/usr/share/nginx/html/`. This is where all website files must go.
 
 ✅ `/var/log/nginx/` - Log directory created with `access.log` and `error.log`
 

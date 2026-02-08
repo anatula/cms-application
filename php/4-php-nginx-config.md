@@ -284,18 +284,18 @@ USER's BROWSER
 NGINX (variables created internally)
      ├── $uri = "/test.php"
      ├── $args = "id=123"
-     ├── $document_root = "/var/www/html" (from config)
+     ├── $document_root = "/usr/share/nginx/html" (from your config)
      └── $fastcgi_script_name = "/test.php"
      ↓
 NGINX combines: $document_root + $fastcgi_script_name
      ↓
 FASTCGI message to PHP-FPM:
-     SCRIPT_FILENAME=/var/www/html/test.php
+     SCRIPT_FILENAME=/usr/share/nginx/html/test.php
      QUERY_STRING=id=123
      ↓
-PHP-FPM executes /var/www/html/test.php
+PHP-FPM executes /usr/share/nginx/html/test.php
      ↓
-PHP sets: $_SERVER['SCRIPT_FILENAME'] = '/var/www/html/test.php'
+PHP sets: $_SERVER['SCRIPT_FILENAME'] = '/usr/share/nginx/html/test.php'
           $_SERVER['QUERY_STRING'] = 'id=123'
 ```
 
