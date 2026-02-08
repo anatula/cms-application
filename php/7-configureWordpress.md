@@ -1,6 +1,6 @@
 ## Complete WordPress Installation
 
-1. Open your browser to: http://localhost/
+1. Open your browser to: http://localhost/ or the server's IP
 2. Select language and click "Continue"
 3. Enter site information:
  -  Site Title: My WordPress Site
