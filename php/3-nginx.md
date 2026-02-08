@@ -2,7 +2,7 @@
 
 ## Previous steps
 
-After installing PHP 8.5 via PPA, we have the CLI SAPI (/usr/bin/php8.5) for terminal scripts. Installing php8.5-fpm added the FPM SAPI as a persistent service with 3 processes (master + 2 workers), created a Unix socket at `/run/php/php8.5-fpm.sock` listening for FastCGI connections, and established separate web configuration at /etc/php/8.5/fpm/. CLI runs ephemerally as our user, while FPM runs continuously with workers as www-data. 
+After installing PHP 8.5 via PPA, we have the CLI SAPI (/usr/bin/php8.5) for terminal scripts. Installing php8.5-fpm added the FPM SAPI as a persistent service with 3 processes (master + 2 workers), created a Unix socket at `/run/php/php8.5-fpm.sock` listening for FastCGI connections, and established separate web configuration at `/etc/php/8.5/fpm/`. CLI runs ephemerally as our user, while FPM runs continuously with workers as `www-data`. 
 
 ## Nginx's Role
 
@@ -162,3 +162,63 @@ systemd (PID 1) → nginx.service → nginx master (root) → nginx worker (ngin
 ```
 
 **Based on what**: The master process reads `nginx.conf`, which specifies `worker_processes`. It then forks that many worker processes. Each worker can handle thousands of concurrent connections via an event-driven, non-blocking I/O model.
+
+## System Impact
+
+### What Changed:
+
+✅ `/usr/sbin/nginx` - Nginx master binary installed
+
+✅ `nginx.service` - Auto-started systemd service that launches Nginx master process, which manages worker processes for handling web requests
+
+✅ `/etc/nginx/` - Configuration directory with `nginx.conf`, `sites-available/`, `sites-enabled/`, and `modules-available/`
+
+✅ `/var/www/html/` - Default web root with sample index.nginx-debian.html
+
+✅ `/var/log/nginx/` - Log directory created with `access.log` and `error.log`
+
+✅ Log rotation configured - Via `/etc/logrotate.d/nginx` (daily, keeps 52 weeks)
+
+✅ Port 80 opened - Nginx automatically starts listening on HTTP (port 80)
+
+✅ Master/Worker Architecture - Root-owned master process manages www-data worker processes for concurrent connections
+
+### What Did NOT Change/Not Included:
+
+❌ No HTTPS/SSL configured (port 443 not enabled by default, needs SSL certificate setup)
+
+❌ No PHP processing enabled (static files only, needs PHP-FPM configuration for dynamic content)
+
+❌ No virtual hosts configured beyond default site (need to set up in /etc/nginx/sites-available/)
+
+❌ No firewall rules added (UFW/iptables may still block port 80)
+
+❌ No new users created (uses existing www-data user for worker processes)
+
+❌ No automatic domain/DNS configuration
+
+❌ No PHP or other backend language support enabled (purely HTTP server initially)
+
+### The Complete Chain:
+
+```text
+System Boot
+    ↓
+systemd (PID 1)
+    ↓
+multi-user.target (default runlevel)
+    ↓
+nginx.service (enabled at boot)
+    ↓
+ExecStart=/usr/sbin/nginx
+    ↓
+Nginx Master Process (root)
+    ↓
+Worker Processes (www-data)
+```
+
+## Extra
+
+### NGINX Log rotation
+
+Nginx log rotation on Ubuntu 22.04 is automatically managed through a systemd timer (logrotate.timer) that triggers daily at midnight. This timer activates logrotate.service, which executes the standard logrotate utility with the configuration defined in /etc/logrotate.d/nginx. The configuration rotates both access.log and error.log daily, retains 52 weeks (one year) of compressed historical logs, and gracefully signals Nginx (via USR1) to reopen its log files without requiring a service restart. New log files are created with secure permissions (640 nginx adm), and old logs are automatically compressed with gzip. This built‑in system ensures that log files never grow uncontrollably while preserving sufficient history for debugging and monitoring.

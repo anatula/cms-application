@@ -81,16 +81,24 @@ API Version: 20250925 (PHP 8.5 internal API)
 
 ### What Changed:
 ✅ `/usr/bin/php8.5` - PHP command available
-✅ `/usr/bin/php` - Symlink to php8.5  
+
+✅ `/usr/bin/php` - Symlink to php8.5
+
 ✅ `php -m` / `php8.5 -m` - Shows 37 available modules
+
 ✅ `phpsessionclean.timer` - Cleans session files every 30 minutes
+
 ✅ Man pages: `man php8.5`, `man phar8.5`
 
 ### What Did NOT Change:
 ❌ No new users created (www-data existed previously)
+
 ❌ No environment variables added
+
 ❌ No PATH modifications
+
 ❌ No system services (except the cleanup timer)
+
 ❌ No shell/profile modifications
 
 ## Current Capabilities:
@@ -119,10 +127,12 @@ API Version: 20250925 (PHP 8.5 internal API)
 ## Bottom Line:
 PHP 8.5 is installed as a command-line tool with basic functionality. `php -m` confirms 37 components available. It's dormant software on disk that only runs when explicitly executed. No web capabilities, no database support, no running services - just the PHP interpreter ready for CLI use.
 
-### Current API
+### Current SAPI
 
-`php8.5 -i | grep "Server API"`
+```bash
+php8.5 -i | grep "Server API"
 Server API => Command Line Interface
+```
 
 ## Extra 
 

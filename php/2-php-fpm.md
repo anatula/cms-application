@@ -81,6 +81,8 @@ Result: Separate executables (`/usr/bin/php`, `/usr/sbin/php-fpm`) sharing ident
 
 
 PHP maintains **one codebase** with **multiple interface implementations**. The SAPI layer abstracts environment communication, allowing identical PHP code to execute across terminal, web server, and embedded contexts via different compiled binaries.
+
+
 Check the Actual Binaries:
 ```bash
 # After installing php8.5-fpm:
@@ -241,20 +243,20 @@ Systemd Symlink Created:
 This means: PHP-FPM is enabled to start automatically when the system reaches "multi-user target" (normal boot without GUI).
 
 Socket Analysis:
-```
+```bash
 u_str LISTEN 0      4096                     /run/php/php8.5-fpm.sock 76636            * 0    users:(("php-fpm8.5",pid=13755,fd=10),("php-fpm8.5",pid=13754,fd=10),("php-fpm8.5",pid=13752,fd=8))
 ```
 Breaking it down:
 
-u_str = Unix stream socket (not TCP/IP)
+`u_str` = Unix stream socket (not TCP/IP)
 
-LISTEN = Socket is listening for connections
+`LISTEN` = Socket is listening for connections
 
-/run/php/php8.5-fpm.sock = Path to the Unix socket
+`/run/php/php8.5-fpm.sock` = Path to the Unix socket
 
-76636 = Inode number of the socket
+`76636` = Inode number of the socket
 
-users:(("php-fpm8.5",pid=13755,fd=10) = Processes using this socket:
+`users` = (("php-fpm8.5",pid=13755,fd=10) = Processes using this socket:
 pid=13755 = Worker process 1 (file descriptor 10)
 pid=13754 = Worker process 2 (file descriptor 10)
 pid=13752 = Master process (file descriptor 8)
@@ -335,7 +337,7 @@ Because:
 - Workers are ready to process requests (fd=10)
 
 Bottom Line:
-PHP-FPM socket is perfectly configured and ready! The ss output shows:
+PHP-FPM socket is perfectly configured and ready!
 
 - Unix stream socket listening
 - Master process (fd=8) accepting connections
@@ -354,3 +356,58 @@ sudo systemctl start php8.5-fpm
  6. Worker waits for next request
  7. Process stays alive (persistent)
 ```
+
+### Security
+
+The PHP-FPM service is properly configured with security best practices. It runs under the dedicated `www-data` user with restrictive file permissions (0660), ensuring *only the web server can communicate with PHP processes*, effectively isolating web applications from system resources and preventing privilege escalation in case of compromise.
+
+## System Impact
+
+### What Changed:
+
+✅ `/usr/sbin/php-fpm8.5` - PHP-FPM daemon binary installed
+
+✅ `php8.5-fpm.service` - Auto-started systemd service that launches PHP-FPM master process, which then spawns www-data worker processes
+
+✅ `/run/php/php8.5-fpm.sock` - Unix socket created for web server to PHP communication
+
+✅ `/run/php/php-fpm.sock` → Symlink via /etc/alternatives/ system for version switching (allows changing PHP versions without updating web server configs)
+
+✅ `/etc/php/8.5/fpm/` - Configuration directory with pool settings and php-fpm.conf
+
+✅ Master/Worker Architecture - Root-owned master process manages www-data worker pool for request processing
+
+### What Did NOT Change/Not Included:
+
+❌ No CLI PHP binary (/usr/bin/php8.5 not installed - that's separate php8.5 package)
+
+❌ No new users created (uses existing www-data user for worker processes)
+
+❌ No environment variables or PATH modifications
+
+❌ No web server configuration modified (nginx/apache need manual setup to use the PHP-FPM socket)
+
+❌ No PHP modules loaded (need separate php8.5-* packages for additional functionality)
+
+## Extra 
+
+### /usr/bin/ vs /usr/sbin/
+
+- `/usr/bin/` - User binaries (commands for ALL users) These are tools any user might need for daily work.
+Examples: php, python, ls, cat, grep, nano, vim, curl, wget, git, node, docker (client), mysql (client), gcc, make, tar, zip, ssh, scp
+
+- `/usr/sbin/` - System binaries (commands for SYSTEM ADMINISTRATION) These are for system management, daemons, and low-level operations.
+Examples: php-fpm8.5, nginx, apache2, mysqld, iptables, ip, ifconfig (deprecated), route, fdisk, parted, lvcreate, vgcreate
+
+### what is /etc/alternatives ?
+
+It's a directory managed by the Debian alternatives system (`update-alternatives`) that acts as a symlink-based selector for commands with multiple implementations. 
+```bash
+lab-admin@lab-server:~$ which update-alternatives
+/usr/bin/update-alternatives
+
+lab-admin@lab-server:~$ man update-alternatives
+```
+
+It lets you install several versions of similar software (like different text editors or Java runtimes) and choose which one runs by default when you type a generic command (e.g., `editor`). You can view the current selection with `update-alternatives --display editor` or `ls -l /etc/alternatives/`, list all options with `--list`, and change it interactively with `sudo update-alternatives --config editor`—this is the recommended way to safely switch, for example, from nano to vim as your system's default editor.
+
