@@ -1,5 +1,7 @@
 # Plan
 
+![myimage](steps.png)
+
 1. Install PHP latest version 8.5
 2. PHP-FPM Installation
 3. Install Nginx
