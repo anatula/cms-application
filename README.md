@@ -156,11 +156,25 @@ network:
 EOF
 ```
 4. Apply it:
-bash
+```bash
 sudo netplan apply
+```
 5. Test it works:
-bash
+```bash
 ping -c 4 google.com
+```
 6. Make it survive reboot:
-bash
+```bash
 sudo reboot
+```
+
+### Problem: Beelink T4 Pro wouldn't fully power off via SSH - stayed in "zombie" state (LED on, needed unplug).
+
+Cause: "Buggy" BIOS ACPI power management on mini PC.
+Fix: Added to /etc/default/grub:
+```text
+GRUB_CMDLINE_LINUX_DEFAULT="acpi=force apm=power_off"
+```
+Then: `sudo update-grub` && `sudo reboot`
+
+Why: apm=power_off uses older, more reliable power control method that bypasses broken BIOS ACPI.
