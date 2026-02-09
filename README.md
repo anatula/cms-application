@@ -178,3 +178,10 @@ GRUB_CMDLINE_LINUX_DEFAULT="acpi=force apm=power_off"
 Then: `sudo update-grub` && `sudo reboot`
 
 Why: apm=power_off uses older, more reliable power control method that bypasses broken BIOS ACPI.
+
+### Problem: Machine auto-powered-on after power outages
+
+Fix: BIOS (Critical)
+**Setting:** `Chipset → South Cluster → RESTORE AC POWER LOSS`
+**Change:** `Power On` → `Power Off`
+**Result:** No auto-power-on after outages
